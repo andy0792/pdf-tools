@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>PDF去除水印工具 - 安全、隐私、极简</title>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+    <style>
+        * {box-sizing:border-box;margin:0;padding:0;font-family:system-ui,"Microsoft Yahei"}
+        body {padding:30px;max-width:920px;margin:0 auto;background:#f5f7fa}
+        .card {background:#fff;padding:28px;border-radius:14px;box-shadow:0 2px 14px #0000000f}
+        .title {font-size:24px;font-weight:600;margin-bottom:12px;color:#1a1a1a}
+        .safe-tip-box {background:#ecfdf3;border:1px solid #6ee7b7;border-radius:10px;padding:14px 18px;margin-bottom:24px}
+        .safe-title {font-size:17px;font-weight:600;color:#047857;margin-bottom:6px}
+        .safe-desc {font-size:15px;color:#065f46}
+        .row {margin-bottom:20px}
+        label {display:block;margin-bottom:8px;font-weight:500;color:#303030;font-size:15px}
+        input[type="text"], input[type="number"] {width:100%;padding:11px 14px;border:1px solid #d3d6dc;border-radius:8px;font-size:15px;outline:none}
+        input:focus {border-color:#4088f3}
+        .file-box {border:2px dashed #ff7520;padding:36px 20px;text-align:center;border-radius:10px;cursor:pointer;margin-bottom:12px;background:#fff9f4;transition:all 0.2s}
+        .file-box:hover {border-color:#f45c00;background:#fff0e4}
+        .file-box .main-text {font-size:22px;font-weight:500;color:#1e1e1e;margin-bottom:8px}
+        .file-box .sub-text {font-size:16px;color:#6e6e6e}
+        .browser-tip {font-size:14px;color:#d97706;text-align:center;margin-bottom:24px}
+        .btn {padding:12px 30px;background:#2563eb;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:16px;transition:0.2s}
+        .btn:disabled {background:#97a3b6;cursor:not-allowed;opacity:0.7}
+        .tip {font-size:13px;color:#6b7280;margin-top:6px}
+        .log-box {margin-top:22px;padding:16px;background:#111827;color:#39e986;border-radius:8px;white-space:pre-wrap;min-height:130px;font-family:Consolas,monospace;font-size:14px}
+        .log-error {color:#ff5c5c}
+        .count-footer {margin-top:18px;padding-top:14px;border-top:1px solid #eee;text-align:right;font-size:14px;color:#555}
+        .count-orange {color:#ff7520;font-weight:bold;font-size:16px}
+        .modal-overlay {position:fixed;inset:0;background:rgba(0,0,0,0.45);display:flex;align-items:center;justify-content:center;z-index:999}
+        .modal-box {background:#ffffff;min-width:460px;max-width:90%;padding:26px 28px;border-radius:12px;box-shadow:0 8px 30px #00000026}
+        .modal-title {font-size:18px;font-weight:600;margin-bottom:16px}
+        .modal-content {font-size:15px;line-height:1.7}
+        .text-orange {color:#ff7520;font-weight:500}
+        .modal-footer {margin-top:22px;text-align:right}
+        .modal-confirm {padding:9px 24px;background:#1f2937;color:#fff;border:none;border-radius:7px;font-size:15px;cursor:pointer}
+        .setting-group {background:#f8fafc;padding:15px;border-radius:8px;border:1px solid #e2e8f0}
+        .setting-row {display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
+        .setting-row:last-child {margin-bottom:0}
+        .setting-row label {margin-bottom:0;min-width:100px}
+        .setting-row input, .setting-row select {flex:1;min-width:120px;padding:8px 12px;border:1px solid #d3d6dc;border-radius:6px;font-size:14px}
+        .preset-tags {display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+        .preset-tag {padding:4px 12px;background:#e0f2fe;border:1px solid #7dd3fc;border-radius:16px;font-size:13px;cursor:pointer;color:#0369a6;transition:0.2s}
+        .preset-tag:hover {background:#bae6fd;border-color:#38bdf8}
+        .info-box {background:#fffbeb;border:1px solid #fcd34d;border-radius:8px;padding:12px 16px;margin-top:12px;font-size:14px;color:#92400e;line-height:1.6}
+    </style>
+</head>
+<body>
+    <div id="app" class="card">
+        <h2 class="title">PDF 去除水印（Vue残缺版， 效果待改进）</h2>
+        <div class="safe-tip-box">
+            <div class="safe-title">安全、隐私、极简</div>
+            <div class="safe-desc">你的文件从未离开你的电脑/手机，100%本地处理，绝对安全。</div>
+        </div>
+        <div class="file-box" @click="$refs.fileInput.click()" @dragover.prevent @drop.prevent="handleDrop">
+            <div class="main-text">点击或拖拽添加PDF文件</div>
+            <div class="sub-text">支持单文件处理，可指定水印文字进行去除</div>
+        </div>
+        <div class="browser-tip">安卓设备请使用Edge、Chrome浏览器打开</div>
+        <input ref="fileInput" type="file" accept=".pdf" hidden @change="handleSelectFile" />
+        <div v-if="fileInfo.name" class="row">
+            <label>已选择：{{fileInfo.name}} <span class="text-orange">({{fileInfo.sizeStr}})</span></label>
+        </div>
+        <div v-if="fileInfo.name" class="row setting-group">
+            <label>水印去除设置</label>
+            <div class="setting-row">
+                <label>水印文字</label>
+                <input v-model="watermarkText" placeholder="输入要去除的水印文字，如：机密、内部资料" />
+            </div>
+            <div class="setting-row">
+                <label>快捷预设</label>
+                <div class="preset-tags">
+                    <span class="preset-tag" @click="watermarkText='机密'">机密</span>
+                    <span class="preset-tag" @click="watermarkText='内部资料'">内部资料</span>
+                    <span class="preset-tag" @click="watermarkText='DRAFT'">DRAFT</span>
+                    <span class="preset-tag" @click="watermarkText='草稿'">草稿</span>
+                    <span class="preset-tag" @click="watermarkText='SAMPLE'">SAMPLE</span>
+                    <span class="preset-tag" @click="watermarkText='副本'">副本</span>
+                    <span class="preset-tag" @click="watermarkText='绝密'">绝密</span>
+                    <span class="preset-tag" @click="watermarkText='作废'">作废</span>
+                </div>
+            </div>
+            <div class="setting-row">
+                <label>去除模式</label>
+                <select v-model="removeMode">
+                    <option value="text">仅去除文字水印</option>
+                    <option value="cover">文字+白色覆盖（更彻底）</option>
+                </select>
+            </div>
+            <div class="setting-row">
+                <label>忽略大小写</label>
+                <input type="checkbox" v-model="ignoreCase" style="width:auto;accent-color:#2563eb" />
+            </div>
+        </div>
+        <div v-if="fileInfo.name" class="row">
+            <label>输出文件名称</label>
+            <input v-model="outFileName" />
+        </div>
+        <div class="row">
+            <button class="btn" :disabled="!pdfBytes" @click="removeWatermark">开始去除水印</button>
+        </div>
+        <div class="info-box" v-if="fileInfo.name && !pdfBytes">
+            请先选择PDF文件，工具将自动验证文件是否可处理。
+        </div>
+        <div v-if="logText" class="log-box" v-html="logText"></div>
+        <div class="count-footer">
+            本地累计去除水印次数：<span class="count-orange">{{processCount}}</span> 次
+        </div>
+        <div v-if="showModal" class="modal-overlay" @click.self="showModal=false">
+            <div class="modal-box">
+                <div class="modal-title">处理完成！</div>
+                <div class="modal-content">
+                    <p>原文件大小：{{fileInfo.sizeStr}}</p>
+                    <p>新文件大小：<span class="text-orange">{{newFileSizeStr}}</span></p>
+                    <p style="margin-top:10px;font-size:13px;color:#666;">文件已保存至浏览器默认下载目录。</p>
+                </div>
+                <div class="modal-footer">
+                    <button class="modal-confirm" @click="showModal=false">确定</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script>
+        const { createApp } = Vue
+        const { PDFDocument } = PDFLib
+        createApp({
+            data() {
+                return {
+                    pdfBytes: null,
+                    fileInfo: { name: '', sizeStr: '' },
+                    outFileName: '去除水印后的文档',
+                    logText: '',
+                    showModal: false,
+                    processCount: 0,
+                    watermarkText: '',
+                    removeMode: 'text',
+                    ignoreCase: false,
+                    newFileSizeStr: ''
+                }
+            },
+            mounted() {
+                const stored = localStorage.getItem('pdfRemoveWatermarkCount')
+                this.processCount = stored ? parseInt(stored, 10) : 0
+            },
+            methods: {
+                formatFileSize(bytes) {
+                    if (bytes < 1024) return bytes + ' B'
+                    else if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(2) + ' KB'
+                    else return (bytes / 1024 / 1024).toFixed(2) + ' MB'
+                },
+                async handleSelectFile(e) {
+                    const file = e.target.files[0]
+                    if (!file) return
+                    await this.loadFile(file)
+                    e.target.value = ''
+                },
+                async handleDrop(e) {
+                    const file = e.dataTransfer.files[0]
+                    if (file && file.name.endsWith('.pdf')) {
+                        await this.loadFile(file)
+                    }
+                },
+                async loadFile(file) {
+                    this.fileInfo.name = file.name
+                    this.fileInfo.sizeStr = this.formatFileSize(file.size)
+                    this.logText = '读取文件：' + file.name + '...'
+                    try {
+                        const arrayBuf = await file.arrayBuffer()
+                        this.pdfBytes = new Uint8Array(arrayBuf)
+                        await PDFDocument.load(this.pdfBytes, { ignoreEncryption: true })
+                        this.logText += '<br>文件加载成功，准备去除水印。'
+                        this.outFileName = file.name.replace(/\.pdf$/i, '') + '_去水印版'
+                    } catch (err) {
+                        this.logText += '<br><span class="log-error">文件加载失败：可能是受保护的文件。</span>'
+                        this.pdfBytes = null
+                    }
+                },
+                async removeWatermark() {
+                    if (!this.pdfBytes) return
+                    if (!this.watermarkText) {
+                        this.logText = '<span class="log-error">请输入要去除的水印文字。</span>'
+                        return
+                    }
+                    this.logText = '===== 开始去除水印处理 =====<br>'
+                    this.logText += '水印文字：' + this.watermarkText + '<br>'
+                    this.logText += '去除模式：' + (this.removeMode === 'text' ? '仅去除文字' : '文字+白色覆盖') + '<br>'
+                    this.logText += '忽略大小写：' + (this.ignoreCase ? '是' : '否') + '<br>'
+                    try {
+                        const pdfDoc = await PDFDocument.load(this.pdfBytes)
+                        const pages = pdfDoc.getPages()
+                        let totalRemoved = 0
+                        for (let i = 0; i < pages.length; i++) {
+                            const page = pages[i]
+                            const pageNum = i + 1
+                            let removed = 0
+                            const textContent = await page.getTextContent()
+                            const items = textContent.items
+                            for (const item of items) {
+                                const text = item.str
+                                let isWatermark = false
+                                if (this.ignoreCase) {
+                                    isWatermark = text.toLowerCase().includes(this.watermarkText.toLowerCase())
+                                } else {
+                                    isWatermark = text.includes(this.watermarkText)
+                                }
+                                if (isWatermark) {
+                                    removed++
+                                    this.logText += '第' + pageNum + '页找到水印文字："'+ text + '"<br>'
+                                }
+                            }
+                            totalRemoved += removed
+                            if (removed > 0 && this.removeMode === 'cover') {
+                                for (const item of items) {
+                                    const text = item.str
+                                    let isWatermark = false
+                                    if (this.ignoreCase) {
+                                        isWatermark = text.toLowerCase().includes(this.watermarkText.toLowerCase())
+                                    } else {
+                                        isWatermark = text.includes(this.watermarkText)
+                                    }
+                                    if (isWatermark && item.transform) {
+                                        const tx = item.transform[4]
+                                        const ty = item.transform[5]
+                                        const fontSize = item.size || 12
+                                        const textWidth = item.width || (text.length * fontSize * 0.5)
+                                        page.drawRectangle({
+                                            x: tx - 2,
+                                            y: ty - fontSize + 2,
+                                            width: textWidth + 4,
+                                            height: fontSize + 4,
+                                            color: PDFLib.rgb(1, 1, 1),
+                                        })
+                                    }
+                                }
+                            }
+                        }
+                        if (totalRemoved === 0) {
+                            this.logText += '<br><span class="log-error">未在文档中找到匹配的水印文字，请检查水印文字是否输入正确。</span>'
+                        } else {
+                            this.logText += '<br>共在 ' + pages.length + ' 页中找到了 ' + totalRemoved + ' 处水印文字'
+                        }
+                        const start = performance.now()
+                        const resultBytes = await pdfDoc.save()
+                        const end = performance.now()
+                        this.newFileSizeStr = this.formatFileSize(resultBytes.length)
+                        this.logText += '<br>处理完成，耗时 ' + Math.round(end - start) + 'ms'
+                        this.download(resultBytes, this.outFileName + '.pdf')
+                        this.processCount += 1
+                        localStorage.setItem('pdfRemoveWatermarkCount', String(this.processCount))
+                        this.showModal = true
+                    } catch (err) {
+                        this.logText += '<br><span class="log-error">处理出错：' + err.message + '</span>'
+                    }
+                },
+                download(uint8Array, name) {
+                    const blob = new Blob([uint8Array], { type: 'application/pdf' })
+                    const url = URL.createObjectURL(blob)
+                    const a = document.createElement('a')
+                    a.href = url
+                    a.download = name
+                    a.click()
+                    setTimeout(() => URL.revokeObjectURL(url), 100)
+                }
+            }
+        }).mount('#app')
+    </script>
+</body>
+</html>

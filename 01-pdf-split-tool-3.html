@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>PDF分割工具 - 安全、隐私、极简</title>
+  <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+  <style>
+    * {box-sizing: border-box;margin:0;padding:0;font-family:system-ui, "Microsoft Yahei"}
+    body {padding:30px;max-width:920px;margin:0 auto;background:#f5f7fa}
+    .card {background:#fff;padding:28px;border-radius:14px;box-shadow:0 2px 14px #0000000f}
+    .title {font-size:24px;font-weight:600;margin-bottom:12px;color:#1a1a1a}
+    /* 安全隐私提示区域 */
+    .safe-tip-box {
+      background:#ecfdf3;
+      border:1px solid #6ee7b7;
+      border-radius:10px;
+      padding:14px 18px;
+      margin-bottom:24px;
+    }
+    .safe-title {
+      font-size:17px;
+      font-weight:600;
+      color:#047857;
+      margin-bottom:6px;
+    }
+    .safe-desc {
+      font-size:15px;
+      color:#065f46;
+    }
+    .row {margin-bottom:20px}
+    label {display:block;margin-bottom:8px;font-weight:500;color:#303030;font-size:15px}
+    input {width:100%;padding:11px 14px;border:1px solid #d3d6dc;border-radius:8px;font-size:15px;outline:none}
+    input:focus {border-color:#4088f3;}
+    /* 橙色虚线上传框 */
+    .file-box {
+      border: 2px dashed #ff7520;
+      padding:36px 20px;
+      text-align:center;
+      border-radius:10px;
+      cursor:pointer;
+      margin-bottom:12px;
+      background:#fff9f4;
+      transition: all 0.2s;
+    }
+    .file-box:hover {
+      border-color:#f45c00;
+      background:#fff0e4;
+    }
+    .file-box .main-text {
+      font-size:22px;
+      font-weight:500;
+      color:#1e1e1e;
+      margin-bottom:8px;
+    }
+    .file-box .sub-text {
+      font-size:16px;
+      color:#6e6e6e;
+    }
+    .browser-tip{
+      font-size:14px;
+      color:#d97706;
+      text-align:center;
+      margin-bottom:24px;
+    }
+    .btn {padding:12px 30px;background:#2563eb;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:16px;transition:0.2s}
+    .btn:disabled {background:#97a3b6;cursor:not-allowed}
+    .tip {font-size:13px;color:#6b7280;margin-top:6px}
+    .log-box {
+      margin-top:22px;
+      padding:16px;
+      background:#111827;
+      color:#39e986;
+      border-radius:8px;
+      white-space:pre-wrap;
+      min-height:130px;
+      font-family:Consolas,monospace;font-size:14px
+    }
+    .log-error{
+      color:#ff5c5c;
+    }
+    /* 加密文件红色提示样式 */
+    .warn-red-box{
+      background:#fff5f5;
+      border:1px solid #ffcccc;
+      border-radius:8px;
+      padding:12px 14px;
+      color:#ff5c5c;
+      font-weight:500;
+      line-height:1.8;
+    }
+    /* 使用计数底部栏 */
+    .count-footer {
+      margin-top:18px;
+      padding-top:14px;
+      border-top:1px solid #eee;
+      text-align:right;
+      font-size:14px;
+      color:#555;
+    }
+    .count-orange {
+      color:#ff7520;
+      font-weight:bold;
+      font-size:16px;
+    }
+    /* ========== 自定义弹窗样式 ========== */
+    .modal-overlay{
+      position:fixed;
+      inset:0;
+      background:rgba(0,0,0,0.45);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      z-index:999;
+    }
+    .modal-box{
+      background:#ffffff;
+      min-width:460px;
+      max-width:90%;
+      padding:26px 28px;
+      border-radius:12px;
+      box-shadow:0 8px 30px #00000026;
+    }
+    .modal-title{
+      font-size:18px;
+      font-weight:600;
+      margin-bottom:16px;
+    }
+    .modal-content{
+      font-size:15px;
+      line-height:1.7;
+    }
+    .text-orange{
+      color:#ff7520;
+      font-weight:500;
+    }
+    .modal-footer{
+      margin-top:22px;
+      text-align:right;
+    }
+    .modal-confirm{
+      padding:9px 24px;
+      background:#1f2937;
+      color:#fff;
+      border:none;
+      border-radius:7px;
+      font-size:15px;
+      cursor:pointer;
+    }
+  </style>
+</head>
+<body>
+<div id="app" class="card">
+  <h2 class="title">PDF分割工具（Vue前端版）</h2>
+  <!-- 安全隐私提示块 -->
+  <div class="safe-tip-box">
+    <div class="safe-title">安全、隐私、极简</div>
+    <div class="safe-desc">你的文件从未离开你的电脑/手机，100%本地处理，绝对安全。</div>
+  </div>
+  <!-- 橙色虚线上传区域 -->
+  <div class="file-box" @click="$refs.fileInput.click()">
+    <div class="main-text">点击选择本地PDF文件</div>
+    <div class="sub-text"> </div>
+  </div>
+  <div class="browser-tip">安卓设备请使用Edge、Chrome浏览器打开，手机自带浏览器易出现兼容异常。</div>
+  <input ref="fileInput" type="file" hidden @change="handleSelectFile" />
+  <div v-if="fileInfo.name" class="row">
+    <label>已选择文件：{{fileInfo.name}} | 文件大小：{{fileSizeStr}} | 总页数：{{totalPages}}。</label>
+  </div>
+  <!-- 加密文件红色提示区块：文件存在但页数0时显示 -->
+  <div v-if="showEncryptWarn" class="row warn-red-box">
+    ❌ 文件大小：{{fileSizeStr}}，但总页数为 {{totalPages}}。
+    <br><br>
+    ❌ 无法处理受保护 PDF，请更换普通PDF文件重试。
+  </div>
+  <!-- 分割页码 -->
+  <div class="row">
+    <label>分割页码 split_point（前N页放入第一份）</label>
+    <input v-model.number="splitPoint" type="number" min="1" />
+    <div class="tip">若PDF总页数 ≤ 该值，仅生成第一个文件</div>
+  </div>
+  <!-- 输出文件名1 -->
+  <div class="row">
+    <label>输出文件1名称（自动加 .pdf）</label>
+    <input v-model="outName1" />
+  </div>
+  <!-- 输出文件名2 -->
+  <div class="row">
+    <label>输出文件2名称（自动加 .pdf）</label>
+    <input v-model="outName2" />
+  </div>
+  <!-- 执行按钮 -->
+  <div class="row">
+    <button class="btn" :disabled="!pdfBytes || splitPoint < 1" @click="splitPdf">开始拆分PDF</button>
+  </div>
+  <!-- 运行日志 -->
+  <div v-if="logText" class="log-box" v-html="logText"></div>
+  <!-- 本地使用计数器 -->
+  <div class="count-footer">
+    本地累计拆分：<span class="count-orange">{{useCount}}</span> 次。
+  </div>
+  <!-- 弹窗 -->
+  <div v-if="showModal" class="modal-overlay" @click.self="showModal=false">
+    <div class="modal-box">
+      <div class="modal-title">拆分完成！</div>
+      <div class="modal-content">
+        <p><span class="text-orange">文件保存至浏览器默认下载目录：</span></p>
+        <p v-html="modalFileHtml"></p>
+        <p style="margin-top:12px"><span class="text-orange">如需放到桌面，请手动复制/剪切文件到桌面文件夹。</span></p>
+      </div>
+      <div class="modal-footer">
+        <button class="modal-confirm" @click="showModal=false">确定。</button>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+const { createApp } = Vue
+const { PDFDocument } = PDFLib
+createApp({
+  data() {
+    return {
+      pdfBytes: null,
+      fileInfo: { name: '' },
+      fileSizeStr: '',
+      totalPages: 0,
+      splitPoint: 3,
+      outName1: '文件1',
+      outName2: '文件2',
+      logText: '',
+      showModal: false,
+      modalFileHtml: "",
+      useCount: 0,
+      showEncryptWarn: false // 加密文件红色提示开关
+    }
+  },
+  mounted() {
+    const stored = localStorage.getItem('pdfSplitUseCount')
+    this.useCount = stored ? parseInt(stored, 10) : 0
+  },
+  methods: {
+    // 文件大小格式化工具
+    formatFileSize(bytes) {
+      if (bytes < 1024) return bytes + ' B';
+      else if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(2) + ' KB';
+      else return (bytes / 1024 / 1024).toFixed(2) + ' MB';
+    },
+    async handleSelectFile(e) {
+      const file = e.target.files[0]
+      if (!file) return
+      // 切换文件先关闭红色加密提示
+      this.showEncryptWarn = false
+      this.fileInfo.name = file.name
+      this.fileSizeStr = this.formatFileSize(file.size)
+      this.logText = `读取文件：${file.name}`
+      this.totalPages = 0
+      this.pdfBytes = null
+      try {
+        const arrayBuf = await file.arrayBuffer()
+        this.pdfBytes = new Uint8Array(arrayBuf)
+        const srcPdf = await PDFDocument.load(this.pdfBytes, {ignoreEncryption:true})
+        this.totalPages = srcPdf.getPageCount()
+        this.logText += `<br />✅ 原始PDF总页数: ${this.totalPages}。`
+        let pureName = file.name.replace(/\.pdf$/i, '')
+        this.outName1 = pureName + '_前半段'
+        this.outName2 = pureName + '_后半段'
+      } catch (err) {
+        // 读取失败，开启红色加密提示
+        this.showEncryptWarn = true
+        this.logText += `<br /><span class="log-error">❌ PDF读取失败：${err.message}。</span>`
+        this.pdfBytes = null
+        this.totalPages = 0
+      }
+    },
+    async splitPdf() {
+      this.logText = '===== 开始拆分 ====='
+      // 页数为0直接拦截
+      if (this.totalPages <= 0) {
+        this.logText += `<br /><span class="log-error">❌ 无法拆分！PDF文档解析失败，请重新选择有效PDF文件。</span>`
+        return
+      }
+      try {
+        const srcPdf = await PDFDocument.load(this.pdfBytes, {ignoreEncryption:true})
+        const total = srcPdf.getPageCount()
+        let sp = this.splitPoint
+        const fullName1 = `${this.outName1}.pdf`
+        const fullName2 = `${this.outName2}.pdf`
+        this.logText += `<br />原始PDF总页数: ${total}。<br />分割点split_point=${sp}。`
+        this.logText += `<br />待生成文件1：${fullName1}。<br />待生成文件2：${fullName2}。`
+        if (total <= sp) {
+          sp = total
+          this.logText += `<br />注意：原始PDF不足设定分割页数，全部归入第一份文件`
+        }
+        const pdf1 = await PDFDocument.create()
+        const copyPages1 = await pdf1.copyPages(srcPdf, [...Array(sp).keys()])
+        copyPages1.forEach(p => pdf1.addPage(p))
+        const buf1 = await pdf1.save()
+        this.downloadFile(buf1, fullName1)
+        this.logText += `<br />✅ 已生成: ${fullName1}，共 ${sp} 页。`
+        let fileList = [fullName1]
+        if (total > sp) {
+          const pdf2 = await PDFDocument.create()
+          const pageIdxArr = []
+          for (let i = sp; i < total; i++) pageIdxArr.push(i)
+          const copyPages2 = await pdf2.copyPages(srcPdf, pageIdxArr)
+          copyPages2.forEach(p => pdf2.addPage(p))
+          const buf2 = await pdf2.save()
+          this.downloadFile(buf2, fullName2)
+          this.logText += `<br />✅ 已生成: ${fullName2}，共 ${total - sp} 页。`
+          fileList.push(fullName2)
+        } else {
+          this.logText += `<br />ℹ️ 无剩余页数，第二份文件未生成。`
+        }
+        this.logText += `<br />===== 拆分完成 =====`
+        this.useCount += 1
+        localStorage.setItem('pdfSplitUseCount', this.useCount.toString())
+        this.modalFileHtml = fileList.join("<br>")
+        this.showModal = true
+      } catch (err) {
+        this.logText += `<br /><span class="log-error">❌ 拆分异常：${err.message}。</span>`
+      }
+    },
+    downloadFile(uint8Buf, fileName) {
+      const blob = new Blob([uint8Buf], { type: 'application/pdf' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = fileName
+      a.click()
+      URL.revokeObjectURL(url)
+    }
+  }
+}).mount('#app')
+</script>
+</body>
+</html>

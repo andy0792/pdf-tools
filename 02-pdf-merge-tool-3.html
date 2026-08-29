@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
-  <title>PDF合并工具 - 安全、隐私、极简</title>
+  <title>PDF/图片合并工具 - 安全、隐私、极简</title>
   <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
   <style>
@@ -99,6 +99,12 @@
       color:#ff5c5c;
     }
     .file-name{flex:1}
+    .tag-pdf{
+      display:inline-block;background:#dbeafe;color:#1d4ed8;padding:1px 6px;font-size:12px;border-radius:4px;margin-right:6px;
+    }
+    .tag-img{
+      display:inline-block;background:#dcfce7;color:#15803d;padding:1px 6px;font-size:12px;border-radius:4px;margin-right:6px;
+    }
     .operate-btn{
       padding:4px 10px;border:none;border-radius:4px;cursor:pointer;margin:0 3px
     }
@@ -167,22 +173,27 @@
 </head>
 <body>
 <div id="app" class="card">
-  <h2 class="title">PDF合并</h2>
+  <h2 class="title">PDF/图片合并工具（Vue前端版）</h2>
   <div class="safe-tip-box">
     <div class="safe-title">安全、隐私、极简</div>
-    <div class="safe-desc">你的文件从未离开你的电脑/手机，100%本地处理，绝对安全。</div>
+    <div class="safe-desc">你的文件从未离开你的电脑/手机，100%本地处理，绝对安全。支持PDF、JPG、PNG混合合并输出PDF。</div>
   </div>
   <div class="file-box" @click="$refs.fileInput.click()" @dragover.prevent @drop.prevent="handleDrop">
-    <div class="main-text">点击或拖拽添加多个PDF文件</div>
-    <div class="sub-text">支持多选，顺序即为合并先后</div>
+    <div class="main-text">点击或拖拽添加PDF / JPG / PNG文件</div>
+    <div class="sub-text">支持多选，顺序即为合并先后；图片每张占独立A4页面</div>
   </div>
   <div class="browser-tip">安卓设备请使用Edge、Chrome浏览器打开，手机自带浏览器易出现兼容异常</div>
-  <input ref="fileInput" type="file" accept=".pdf" multiple hidden @change="handleSelectFile" />
+  <input ref="fileInput" type="file" accept=".pdf,.jpg,.jpeg,.png,image/*" multiple hidden @change="handleSelectFile" />
   <div v-if="fileList.length > 0" class="row">
     <label>待合并文件列表（点击上下调整顺序，红色文件无法参与合并）</label>
     <div class="file-list">
       <div v-for="(item,idx) in fileList" :key="idx" class="file-item" :class="{err:!item.valid}">
-        <div class="file-name">{{item.name}}（{{item.sizeStr}}）<span v-if="!item.valid">【受保护PDF，无法解析】</span></div>
+        <div class="file-name">
+          <span v-if="item.type==='pdf'" class="tag-pdf">PDF</span>
+          <span v-if="item.type==='image'" class="tag-img">图片</span>
+          {{item.name}}（{{item.sizeStr}}）
+          <span v-if="!item.valid">【无法解析】</span>
+        </div>
         <div class="btns-group">
           <button class="operate-btn btn-up" :disabled="idx===0" @click="moveUp(idx)">上移</button>
           <button class="operate-btn btn-down" :disabled="idx === fileList.length-1" @click="moveDown(idx)">下移</button>
@@ -221,7 +232,7 @@ const { PDFDocument } = PDFLib
 createApp({
   data() {
     return {
-      fileList: [], // {file,name,sizeStr,pdfObj,valid}
+      fileList: [], // {file,name,sizeStr,type:'pdf'|'image',pdfObj,imgBytes,imgType,valid}
       outFileName: '合并文档',
       logText: '',
       showModal: false,
@@ -229,106 +240,140 @@ createApp({
     }
   },
   computed:{
-    // 判断是否可以合并：列表不为空 + 所有文件valid=true
     canMerge(){
       if(this.fileList.length === 0) return false
       return this.fileList.every(item => item.valid)
     }
   },
   mounted() {
-    // 读取合并计数
     const stored = localStorage.getItem('pdfMergeCount')
     this.mergeCount = stored ? parseInt(stored,10) : 0
   },
   methods: {
-    // 文件大小格式化（复用分割工具）
     formatFileSize(bytes) {
       if (bytes < 1024) return bytes + ' B';
       else if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(2) + ' KB';
       else return (bytes / 1024 / 1024).toFixed(2) + ' MB';
     },
-    // 多选文件选择
     async handleSelectFile(e){
       const files = Array.from(e.target.files)
       await this.addFiles(files)
       e.target.value = ''
     },
-    // 拖拽文件
     async handleDrop(e){
-      const files = Array.from(e.dataTransfer.files).filter(f=>f.name.endsWith('.pdf'))
+      const files = Array.from(e.dataTransfer.files)
       await this.addFiles(files)
     },
-    // 批量添加并解析PDF
     async addFiles(files){
       for(const file of files){
         const sizeStr = this.formatFileSize(file.size)
+        const lowerName = file.name.toLowerCase()
         let item = {
           file,
           name: file.name,
           sizeStr,
+          type:'pdf',
           pdfObj: null,
+          imgBytes:null,
+          imgType:null,
           valid: true
         }
         try{
-          const buf = await file.arrayBuffer()
-          const pdf = await PDFDocument.load(buf, {ignoreEncryption:true})
-          item.pdfObj = pdf
+          if(lowerName.endsWith('.pdf')){
+            item.type='pdf'
+            const buf = await file.arrayBuffer()
+            const pdf = await PDFDocument.load(buf, {ignoreEncryption:true})
+            item.pdfObj = pdf
+          }else if(lowerName.endsWith('.jpg')||lowerName.endsWith('.jpeg')){
+            item.type='image'
+            item.imgType='jpg'
+            item.imgBytes = await file.arrayBuffer()
+          }else if(lowerName.endsWith('.png')){
+            item.type='image'
+            item.imgType='png'
+            item.imgBytes = await file.arrayBuffer()
+          }else{
+            throw new Error("不支持文件类型")
+          }
         }catch(err){
           item.valid = false
-          this.logText += `<br /><span class="log-error">❌ ${file.name}为受保护PDF，无法解析。</span>`
+          this.logText += `<br /><span class="log-error">❌ ${file.name} 解析失败，不支持或损坏。</span>`
         }
         this.fileList.push(item)
       }
     },
-    // 上移
     moveUp(idx){
       [this.fileList[idx - 1], this.fileList[idx]] = [this.fileList[idx], this.fileList[idx - 1]];
     },
-    // 下移
     moveDown(idx){
       [this.fileList[idx], this.fileList[idx + 1]] = [this.fileList[idx + 1], this.fileList[idx]];
     },
-    // 删除条目
     delItem(idx){
       this.fileList.splice(idx,1)
     },
-    // 合并主逻辑【增加单文件捕获，解决DJI手册加载成功合并报错无提示】
     async mergePdf(){
       this.logText = '===== 开始合并 ====='
       if(this.fileList.length === 0){
-        this.logText += `<br /><span class="log-error">❌ 未选择任何PDF文件。</span>`
+        this.logText += `<br /><span class="log-error">❌ 未选择任何文件。</span>`
         return
       }
       const invalid = this.fileList.filter(i=>!i.valid)
       if(invalid.length > 0){
-        this.logText += `<br /><span class="log-error">❌ 列表包含受保护PDF，无法执行合并，请删除异常文件后重试。</span>`
+        this.logText += `<br /><span class="log-error">❌ 列表包含无效文件，请删除异常文件后重试。</span>`
         return
       }
       try{
         const mergedPdf = await PDFDocument.create()
+        // A4尺寸 pt
+        const A4_WIDTH = 595.28;
+        const A4_HEIGHT = 841.89;
+
         for(const item of this.fileList){
-          // 单个文件独立捕获，解决加载正常但页面复制失败的特殊PDF
-          try {
-            const pages = await mergedPdf.copyPages(item.pdfObj, item.pdfObj.getPageIndices())
-            pages.forEach(p=>mergedPdf.addPage(p))
-            this.logText += `<br />✅ 已载入：${item.name}`
-          } catch (innerErr) {
-            this.logText += `<br /><span class="log-error">❌ ${item.name}文档结构特殊，本工具无法读取页面，请更换普通PDF。</span>`
-            return;
+          if(item.type === 'pdf'){
+            try {
+              const pages = await mergedPdf.copyPages(item.pdfObj, item.pdfObj.getPageIndices())
+              pages.forEach(p=>mergedPdf.addPage(p))
+              this.logText += `<br />✅ 载入PDF：${item.name}`
+            } catch (innerErr) {
+              this.logText += `<br /><span class="log-error">❌ ${item.name}文档结构特殊，无法读取页面。</span>`
+              return;
+            }
+          }else if(item.type === 'image'){
+            // 图片处理：新建A4页面，图片等比缩放居中
+            let pdfImg;
+            if(item.imgType === 'jpg'){
+              pdfImg = await mergedPdf.embedJpg(item.imgBytes)
+            }else{
+              pdfImg = await mergedPdf.embedPng(item.imgBytes)
+            }
+            // 计算等比缩放，留边距
+            const margin = 40;
+            const maxW = A4_WIDTH - margin*2;
+            const maxH = A4_HEIGHT - margin*2;
+            let scale = Math.min(maxW / pdfImg.width, maxH / pdfImg.height);
+            const drawW = pdfImg.width * scale;
+            const drawH = pdfImg.height * scale;
+            const page = mergedPdf.addPage([A4_WIDTH, A4_HEIGHT])
+            page.drawImage(pdfImg,{
+              x: (A4_WIDTH - drawW)/2,
+              y: (A4_HEIGHT - drawH)/2,
+              width: drawW,
+              height: drawH
+            })
+            this.logText += `<br />✅ 载入图片：${item.name}`
           }
         }
         const outBuf = await mergedPdf.save()
         this.download(outBuf, this.outFileName + '.pdf')
         this.logText += `<br />===== 合并完成 =====`
-        // 计数自增持久化
         this.mergeCount += 1
         localStorage.setItem('pdfMergeCount', String(this.mergeCount))
         this.showModal = true
       }catch(err){
-        this.logText += `<br /><span class="log-error">❌ 合并失败，存在不兼容PDF文档，请更换文件重试。</span>`
+        console.error(err)
+        this.logText += `<br /><span class="log-error">❌ 合并失败，存在不兼容文件，请更换重试。</span>`
       }
     },
-    // 下载文件
     download(uint8, name){
       const blob = new Blob([uint8], {type:'application/pdf'})
       const url = URL.createObjectURL(blob)
