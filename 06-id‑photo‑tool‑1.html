@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>一寸证件照工具</title>
+    <!-- 线上CDN，调试使用；离线完成后替换为 ./lib/cropper.min.css -->
+    <link rel="stylesheet" href="./lib/cropper.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: system-ui, "Microsoft YaHei", sans-serif;
+            background-color: #f3f4f6;
+            padding: 24px 16px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: #ffffff;
+            padding: 28px;
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+        }
+        header {
+            text-align: center;
+            margin-bottom: 24px;
+        }
+        h1 {
+            font-size: 24px;
+            color: #1f2937;
+            margin-bottom: 8px;
+        }
+        .desc {
+            font-size: 14px;
+            color: #6b7280;
+        }
+        .btn-group {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-bottom: 24px;
+            justify-content: center;
+        }
+        button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            cursor: pointer;
+        }
+        .btn-primary {
+            background-color: #2563eb;
+            color: #fff;
+        }
+        .btn-primary:disabled {
+            background-color: #9ca3af;
+            cursor: not-allowed;
+        }
+        .preview-wrap {
+            display: flex;
+            gap: 24px;
+            flex-wrap: wrap;
+        }
+        .preview-item {
+            flex: 1;
+            min-width: 260px;
+        }
+        .preview-item.large {
+            flex: 1.5;
+        }
+        .preview-item h3 {
+            font-size: 15px;
+            color: #374151;
+            margin-bottom: 10px;
+        }
+
+        .cropper-box {
+            max-width: 100%;
+            height: 420px;         /* 给一个固定高度 */
+            max-height: 420px;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        canvas {
+            width: 100%;
+            max-width: 300px;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            display: block;
+        }
+        #canvasA4 {
+            max-width: 420px;
+            background: #fff;
+        }
+        .tip-text {
+            margin-top: 20px;
+            font-size: 13px;
+            color: #6b7280;
+            background: #f9fafb;
+            padding: 12px;
+            border-radius: 6px;
+        }
+        .row-top {
+            display: flex;
+            gap: 24px;
+            margin-bottom: 32px;
+            flex-wrap: wrap; /* 小屏幕自动换行，变成上下排列 */
+        }
+
+        .col-crop {
+            flex: 1;       /* ✅ 两份各占1份，左右两分均分 */
+            min-width: 0;
+        }
+
+        .col-preview {
+            flex: 1;       /* ✅ 和左边权重一样，左右对半分 */
+            min-width: 0;
+        }
+
+    /* 底部A4通栏区域 */
+    .row-bottom{
+        width:100%;
+    }
+    .a4-wrap{
+        /* A4画布会很大，增加滚动条，防止撑爆页面 */
+        overflow-x: auto;
+        border:1px solid #d1d5db;
+        border-radius:8px;
+        padding:8px;
+    }
+
+    canvas#canvasOne{
+        width:295px;
+        height:413px;
+        border:1px solid #d1d5db;
+        border-radius:8px;
+    }
+/* toast轻提示组件 */
+.toast-wrap {
+    position: fixed;
+    right: 20px;
+    bottom: 20px;
+    z-index: 9999;
+}
+.toast-item {
+    background-color: rgba(0,0,0,0.75);
+    color: #fff;
+    padding:10px 18px;
+    border-radius:6px;
+    margin-top:8px;
+    font-size:14px;
+    animation: toastIn 0.25s ease;
+}
+@keyframes toastIn {
+    from {opacity:0; transform: translateY(10px);}
+    to {opacity:1; transform: translateY(0);}
+}
+
+    </style>
+</head>
+<body>
+<div class="container">
+    <header>
+        <h1>一寸证件照工具</h1>
+        <div class="desc">上传图片 → 手动裁剪一寸照 → 生成295×413预览 → A4八张排版</div>
+    </header>
+
+    <div class="btn-group">
+        <button id="btnUpload" class="btn-primary">📂 选择本地图片</button>
+        <button id="btnGenOne" class="btn-primary" disabled>① 生成一寸照片</button>
+        <button id="btnLayout" class="btn-primary" disabled>② 生成8张A4排版</button>
+        <button id="btnDownload" class="btn-primary" disabled>③ 💾 下载排版图片</button>
+        <!-- =====新增重置按钮===== -->
+        <button id="btnReset" class="btn-primary">🔄 重置</button>
+    </div>
+
+
+    <!-- 第一行：核心操作区：裁剪 + 一寸预览 -->
+    <div class="row-top">
+            <div class="col-crop">
+                <h4>手动裁剪区域</h4>
+                <div class="cropper-box">
+                    <img id="cropImg" />
+                </div>
+    </div>
+    <div class="col-preview">
+                <h4>一寸照片预览 295×413px</h4>
+                <canvas id="canvasOne"></canvas>
+            </div>
+    </div>
+
+    <!-- 第二行，单独通栏放在页面底部：A4排版预览 -->
+    <div class="row-bottom">
+            <h4>A4排版预览（8张一寸，2行×4列）</h4>
+            <div class="a4-wrap">
+                <canvas id="canvasA4"></canvas>
+            </div>
+    </div>
+
+
+    <div class="tip-text">
+        💡 说明：先生成一英寸照片，再点击【生成8张A4排版】。排版为 A4 竖版，2行×4列，保留白边，方便直接打印。
+    </div>
+</div>
+
+<input type="file" id="fileInput" accept="image/*" style="display:none;">
+
+
+<!-- 线上CDN，调试使用；离线完成后替换为 ./lib/cropper.min.js -->
+<script src="./lib/cropper.min.js"></script>
+<script>
+// toast轻提示，替代alert
+function showToast(msg, duration = 2500){
+    let wrap = document.querySelector('.toast-wrap');
+    if(!wrap){
+        wrap = document.createElement('div');
+        wrap.className = 'toast-wrap';
+        document.body.appendChild(wrap);
+    }
+    const item = document.createElement('div');
+    item.className = 'toast-item';
+    item.innerText = msg;
+    wrap.appendChild(item);
+    setTimeout(()=>{
+        item.remove();
+    }, duration);
+}
+
+const $ = id => document.getElementById(id);
+
+const btnUpload = $('btnUpload');
+const btnGenOne = $('btnGenOne');
+const btnLayout = $('btnLayout');
+const btnDownload = $('btnDownload');
+const fileInput = $('fileInput');
+const cropImg = $('cropImg');
+const canvasOne = $('canvasOne');
+const canvasA4 = $('canvasA4');
+const ctxOne = canvasOne.getContext('2d');
+const btnReset = $('btnReset');
+
+
+// 一寸照尺寸
+const ONE_INCH_W = 295;
+const ONE_INCH_H = 413;
+const ONE_INCH_ASPECT = ONE_INCH_W / ONE_INCH_H;
+
+// A4竖版画布：72dpi 下常用打印尺寸
+const A4_W = 2480;
+const A4_H = 3508;
+
+const STATE = {
+    cropper: null,
+    oneInchBlob: null,
+    oneInchCanvas: null,
+    a4Canvas: null
+};
+
+// 初始化A4画布尺寸
+canvasA4.width = A4_W;
+canvasA4.height = A4_H;
+
+btnUpload.addEventListener('click', () => {
+    fileInput.click();
+});
+
+fileInput.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    // 如果存在旧cropper，先销毁
+    if (STATE.cropper) {
+        STATE.cropper.destroy();
+        STATE.cropper = null;
+    }
+
+    const cropImg = document.getElementById('cropImg');
+    // 解绑旧事件，防止堆积
+    cropImg.onload = null;
+
+    const reader = new FileReader();
+
+    reader.onload = function (ev) {
+        const imgUrl = ev.target.result;
+
+        cropImg.onload = () => {
+            STATE.cropper = new Cropper(cropImg, {
+                aspectRatio: ONE_INCH_ASPECT,
+                viewMode: 1,
+                autoCropArea: 0.85,
+                restore: false,
+                checkOrientation: true,
+                background: false,
+                minCropBoxWidth: 120,
+                minCropBoxHeight: 170
+            });
+
+            btnGenOne.disabled = false;
+            btnLayout.disabled = true;
+            btnDownload.disabled = true;
+            STATE.oneInchBlob = null;
+            STATE.oneInchCanvas = null;
+            STATE.a4Canvas = null;
+            clearCanvas(canvasOne);
+            clearCanvas(canvasA4);
+        };
+
+        // 给img设置图片地址，触发onload
+        cropImg.src = imgUrl;
+    };
+
+    // 只在这里捕获文件读取损坏错误，不再使用 cropImg.onerror
+    reader.onerror = function () {
+        showToast("图片加载失败，请更换图片");
+    };
+
+    reader.readAsDataURL(file);
+    // 清空file输入框，允许选同一个文件再次上传
+    e.target.value = '';
+});
+
+
+// 生成一寸照片
+btnGenOne.addEventListener('click', async () => {
+    if (!STATE.cropper) {
+        // alert("请先上传图片");
+        showToast("请先上传图片");
+
+        return;
+    }
+
+    const croppedCanvas = STATE.cropper.getCroppedCanvas({
+        width: ONE_INCH_W,
+        height: ONE_INCH_H,
+        imageSmoothingEnabled: true,
+        imageSmoothingQuality: 'high'
+    });
+
+    ctxOne.clearRect(0, 0, ONE_INCH_W, ONE_INCH_H);
+    ctxOne.drawImage(croppedCanvas, 0, 0);
+
+    STATE.oneInchCanvas = croppedCanvas;
+
+    croppedCanvas.toBlob((blob) => {
+        STATE.oneInchBlob = blob;
+        btnLayout.disabled = false;
+    }, 'image/png');
+});
+
+// ========== V3新增：A4八张排版 ==========
+// ========== V3 A4八张排版（已修复，照片集中A4上半部分） ==========
+btnLayout.addEventListener('click', () => {
+    if (!STATE.oneInchCanvas) {
+        // alert("请先生成一寸照片");
+        showToast("请先生成一寸照片");
+        return;
+    }
+
+    const ctxA4 = canvasA4.getContext('2d');
+    ctxA4.fillStyle = '#ffffff';
+    ctxA4.fillRect(0, 0, A4_W, A4_H);
+
+    const cols = 4;
+    const rows = 2;
+
+    const marginX = 120;
+    const marginY = 160;
+    const gapX = 100;
+    const gapY = 120;
+
+    let count = 0;
+    for (let row = 0; row < rows; row++) {
+        for (let col = 0; col < cols; col++) {
+            const x = marginX + col * (ONE_INCH_W + gapX);
+            const y = marginY + row * (ONE_INCH_H + gapY);
+
+            ctxA4.drawImage(STATE.oneInchCanvas, x, y, ONE_INCH_W, ONE_INCH_H);
+
+            ctxA4.strokeStyle = '#e5e7eb';
+            ctxA4.lineWidth = 1;
+            ctxA4.strokeRect(x, y, ONE_INCH_W, ONE_INCH_H);
+            count++;
+        }
+    }
+    console.log("实际绘制照片数量：", count);
+    STATE.a4Canvas = canvasA4;
+    btnDownload.disabled = false;
+});
+
+// ========== V4：下载排版图片 ==========
+btnDownload.addEventListener('click', () => {
+    if(!STATE.a4Canvas){
+        // alert("请先生成A4排版");
+        showToast("请先生成A4排版");
+        return;
+    }
+    canvasA4.toBlob((blob)=>{
+        if(!blob) return;
+        const a = document.createElement('a');
+        const url = URL.createObjectURL(blob);
+        a.href = url;
+        a.download = `一寸照_A4排版_${new Date().getTime()}.png`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    },'image/png', 1.0);
+});
+
+
+function clearCanvas(canvas) {
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+}
+
+console.log("✅ V3加载完成：A4八张排版");
+
+
+// ========== V5：重置全部状态 ==========
+function resetAllState(){
+    //销毁cropper裁剪实例
+    if(STATE.cropper){
+        STATE.cropper.destroy();
+        STATE.cropper = null;
+    }
+    //清空图片dom
+    const imgDom = document.getElementById('cropImg');
+    if(imgDom){
+        // 解绑事件，不移除DOM元素！保留img标签在页面中
+        imgDom.onerror = null;
+        imgDom.onload = null;
+        imgDom.src = "";   // 清空图片源，标签保留
+    }
+    //清空裁剪容器残留dom（cropper生成的dom）
+    document.querySelector('.cropper-box').innerHTML = '';
+    // 把img标签重新放回容器内！重要！
+    if(imgDom){
+        document.querySelector('.cropper-box').appendChild(imgDom);
+    }
+
+    //清空内存数据
+    STATE.oneInchBlob = null;
+    STATE.oneInchCanvas = null;
+    STATE.a4Canvas = null;
+    //清空两块画布
+    clearCanvas(canvasOne);
+    clearCanvas(canvasA4);
+    //恢复按钮禁用状态
+    btnGenOne.disabled = true;
+    btnLayout.disabled = true;
+    btnDownload.disabled = true;
+
+    showToast("已全部重置");
+}
+btnReset.addEventListener('click',resetAllState);
+
+
+</script>
+</body>
+</html>
