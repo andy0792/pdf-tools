@@ -1,58 +1,301 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
+
 <head>
     <meta charset="UTF-8">
     <title>PDF去除水印工具 - 安全、隐私、极简</title>
     <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
     <style>
-        * {box-sizing:border-box;margin:0;padding:0;font-family:system-ui,"Microsoft Yahei"}
-        body {padding:30px;max-width:920px;margin:0 auto;background:#f5f7fa}
-        .card {background:#fff;padding:28px;border-radius:14px;box-shadow:0 2px 14px #0000000f}
-        .title {font-size:24px;font-weight:600;margin-bottom:12px;color:#1a1a1a}
-        .safe-tip-box {background:#ecfdf3;border:1px solid #6ee7b7;border-radius:10px;padding:14px 18px;margin-bottom:24px}
-        .safe-title {font-size:17px;font-weight:600;color:#047857;margin-bottom:6px}
-        .safe-desc {font-size:15px;color:#065f46}
-        .row {margin-bottom:20px}
-        label {display:block;margin-bottom:8px;font-weight:500;color:#303030;font-size:15px}
-        input[type="text"], input[type="number"] {width:100%;padding:11px 14px;border:1px solid #d3d6dc;border-radius:8px;font-size:15px;outline:none}
-        input:focus {border-color:#4088f3}
-        .file-box {border:2px dashed #ff7520;padding:36px 20px;text-align:center;border-radius:10px;cursor:pointer;margin-bottom:12px;background:#fff9f4;transition:all 0.2s}
-        .file-box:hover {border-color:#f45c00;background:#fff0e4}
-        .file-box .main-text {font-size:22px;font-weight:500;color:#1e1e1e;margin-bottom:8px}
-        .file-box .sub-text {font-size:16px;color:#6e6e6e}
-        .browser-tip {font-size:14px;color:#d97706;text-align:center;margin-bottom:24px}
-        .btn {padding:12px 30px;background:#2563eb;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:16px;transition:0.2s}
-        .btn:disabled {background:#97a3b6;cursor:not-allowed;opacity:0.7}
-        .tip {font-size:13px;color:#6b7280;margin-top:6px}
-        .log-box {margin-top:22px;padding:16px;background:#111827;color:#39e986;border-radius:8px;white-space:pre-wrap;min-height:130px;font-family:Consolas,monospace;font-size:14px}
-        .log-error {color:#ff5c5c}
-        .count-footer {margin-top:18px;padding-top:14px;border-top:1px solid #eee;text-align:right;font-size:14px;color:#555}
-        .count-orange {color:#ff7520;font-weight:bold;font-size:16px}
-        .modal-overlay {position:fixed;inset:0;background:rgba(0,0,0,0.45);display:flex;align-items:center;justify-content:center;z-index:999}
-        .modal-box {background:#ffffff;min-width:460px;max-width:90%;padding:26px 28px;border-radius:12px;box-shadow:0 8px 30px #00000026}
-        .modal-title {font-size:18px;font-weight:600;margin-bottom:16px}
-        .modal-content {font-size:15px;line-height:1.7}
-        .text-orange {color:#ff7520;font-weight:500}
-        .modal-footer {margin-top:22px;text-align:right}
-        .modal-confirm {padding:9px 24px;background:#1f2937;color:#fff;border:none;border-radius:7px;font-size:15px;cursor:pointer}
-        .setting-group {background:#f8fafc;padding:15px;border-radius:8px;border:1px solid #e2e8f0}
-        .setting-row {display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
-        .setting-row:last-child {margin-bottom:0}
-        .setting-row label {margin-bottom:0;min-width:100px}
-        .setting-row input, .setting-row select {flex:1;min-width:120px;padding:8px 12px;border:1px solid #d3d6dc;border-radius:6px;font-size:14px}
-        .preset-tags {display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
-        .preset-tag {padding:4px 12px;background:#e0f2fe;border:1px solid #7dd3fc;border-radius:16px;font-size:13px;cursor:pointer;color:#0369a6;transition:0.2s}
-        .preset-tag:hover {background:#bae6fd;border-color:#38bdf8}
-        .info-box {background:#fffbeb;border:1px solid #fcd34d;border-radius:8px;padding:12px 16px;margin-top:12px;font-size:14px;color:#92400e;line-height:1.6}
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: system-ui, "Microsoft Yahei"
+        }
+
+        body {
+            padding: 30px;
+            max-width: 920px;
+            margin: 0 auto;
+            background: #f5f7fa
+        }
+
+        .card {
+            background: #fff;
+            padding: 28px;
+            border-radius: 14px;
+            box-shadow: 0 2px 14px #0000000f
+        }
+
+        .title {
+            font-size: 24px;
+            font-weight: 600;
+            margin-bottom: 12px;
+            color: #1a1a1a
+        }
+
+        .safe-tip-box {
+            background: #ecfdf3;
+            border: 1px solid #6ee7b7;
+            border-radius: 10px;
+            padding: 14px 18px;
+            margin-bottom: 24px
+        }
+
+        .safe-title {
+            font-size: 17px;
+            font-weight: 600;
+            color: #047857;
+            margin-bottom: 6px
+        }
+
+        .safe-desc {
+            font-size: 15px;
+            color: #065f46
+        }
+
+        .row {
+            margin-bottom: 20px
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: #303030;
+            font-size: 15px
+        }
+
+        input[type="text"],
+        input[type="number"] {
+            width: 100%;
+            padding: 11px 14px;
+            border: 1px solid #d3d6dc;
+            border-radius: 8px;
+            font-size: 15px;
+            outline: none
+        }
+
+        input:focus {
+            border-color: #4088f3
+        }
+
+        .file-box {
+            border: 2px dashed #ff7520;
+            padding: 36px 20px;
+            text-align: center;
+            border-radius: 10px;
+            cursor: pointer;
+            margin-bottom: 12px;
+            background: #fff9f4;
+            transition: all 0.2s
+        }
+
+        .file-box:hover {
+            border-color: #f45c00;
+            background: #fff0e4
+        }
+
+        .file-box .main-text {
+            font-size: 22px;
+            font-weight: 500;
+            color: #1e1e1e;
+            margin-bottom: 8px
+        }
+
+        .file-box .sub-text {
+            font-size: 16px;
+            color: #6e6e6e
+        }
+
+        .browser-tip {
+            font-size: 14px;
+            color: #d97706;
+            text-align: center;
+            margin-bottom: 24px
+        }
+
+        .btn {
+            padding: 12px 30px;
+            background: #2563eb;
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: 0.2s
+        }
+
+        .btn:disabled {
+            background: #97a3b6;
+            cursor: not-allowed;
+            opacity: 0.7
+        }
+
+        .tip {
+            font-size: 13px;
+            color: #6b7280;
+            margin-top: 6px
+        }
+
+        .log-box {
+            margin-top: 22px;
+            padding: 16px;
+            background: #111827;
+            color: #39e986;
+            border-radius: 8px;
+            white-space: pre-wrap;
+            min-height: 130px;
+            font-family: Consolas, monospace;
+            font-size: 14px
+        }
+
+        .log-error {
+            color: #ff5c5c
+        }
+
+        .count-footer {
+            margin-top: 18px;
+            padding-top: 14px;
+            border-top: 1px solid #eee;
+            text-align: right;
+            font-size: 14px;
+            color: #555
+        }
+
+        .count-orange {
+            color: #ff7520;
+            font-weight: bold;
+            font-size: 16px
+        }
+
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.45);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 999
+        }
+
+        .modal-box {
+            background: #ffffff;
+            min-width: 460px;
+            max-width: 90%;
+            padding: 26px 28px;
+            border-radius: 12px;
+            box-shadow: 0 8px 30px #00000026
+        }
+
+        .modal-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 16px
+        }
+
+        .modal-content {
+            font-size: 15px;
+            line-height: 1.7
+        }
+
+        .text-orange {
+            color: #ff7520;
+            font-weight: 500
+        }
+
+        .modal-footer {
+            margin-top: 22px;
+            text-align: right
+        }
+
+        .modal-confirm {
+            padding: 9px 24px;
+            background: #1f2937;
+            color: #fff;
+            border: none;
+            border-radius: 7px;
+            font-size: 15px;
+            cursor: pointer
+        }
+
+        .setting-group {
+            background: #f8fafc;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #e2e8f0
+        }
+
+        .setting-row {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            flex-wrap: wrap;
+            margin-bottom: 10px
+        }
+
+        .setting-row:last-child {
+            margin-bottom: 0
+        }
+
+        .setting-row label {
+            margin-bottom: 0;
+            min-width: 100px
+        }
+
+        .setting-row input,
+        .setting-row select {
+            flex: 1;
+            min-width: 120px;
+            padding: 8px 12px;
+            border: 1px solid #d3d6dc;
+            border-radius: 6px;
+            font-size: 14px
+        }
+
+        .preset-tags {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-top: 8px
+        }
+
+        .preset-tag {
+            padding: 4px 12px;
+            background: #e0f2fe;
+            border: 1px solid #7dd3fc;
+            border-radius: 16px;
+            font-size: 13px;
+            cursor: pointer;
+            color: #0369a6;
+            transition: 0.2s
+        }
+
+        .preset-tag:hover {
+            background: #bae6fd;
+            border-color: #38bdf8
+        }
+
+        .info-box {
+            background: #fffbeb;
+            border: 1px solid #fcd34d;
+            border-radius: 8px;
+            padding: 12px 16px;
+            margin-top: 12px;
+            font-size: 14px;
+            color: #92400e;
+            line-height: 1.6
+        }
     </style>
 </head>
+
 <body>
     <div id="app" class="card">
         <h2 class="title">PDF 去除水印（Vue残缺版， 效果待改进）</h2>
         <div class="safe-tip-box">
             <div class="safe-title">安全、隐私、极简</div>
-            <div class="safe-desc">你的文件从未离开你的电脑/手机，100%本地处理，绝对安全。</div>
+            <div class="safe-desc">你的文件从未离开你的电脑/手机，100%本地处理，更安全。</div>
         </div>
         <div class="file-box" @click="$refs.fileInput.click()" @dragover.prevent @drop.prevent="handleDrop">
             <div class="main-text">点击或拖拽添加PDF文件</div>
@@ -207,7 +450,7 @@
                                 }
                                 if (isWatermark) {
                                     removed++
-                                    this.logText += '第' + pageNum + '页找到水印文字："'+ text + '"<br>'
+                                    this.logText += '第' + pageNum + '页找到水印文字："' + text + '"<br>'
                                 }
                             }
                             totalRemoved += removed
@@ -267,4 +510,5 @@
         }).mount('#app')
     </script>
 </body>
+
 </html>
